@@ -1,51 +1,64 @@
 package main
 
 import (
+	"btc_node_monitor/bitcoin_rpc"
 	"btc_node_monitor/conf"
-
-	"gopkg.in/gomail.v2"
+	"btc_node_monitor/mail"
+	"btc_node_monitor/three_bitcoin_rpc"
+	"log"
+	"math"
+	"strconv"
+	"time"
 )
-
-const (
-	// 邮件服务器地址
-	MailHost = "smtp.qq.com"
-	// 端口
-	MailPort = 587
-	// 发送邮件用户账号
-	MailUser = "809979396@qq.com"
-	// 授权密码
-	MailPwd = "fffiowhhjbnkbfbc"
-)
-
-/*
-title 使用gomail发送邮件
-@param []string mailAddress 收件人邮箱
-@param string subject 邮件主题
-@param string body 邮件内容
-@return error
-*/
-func SendGoMail(body string) error {
-	var mailAddress []string
-	mailAddress = append(mailAddress, "xiejiazheng@valleysound.xyz")
-
-	m := gomail.NewMessage()
-	// 这种方式可以添加别名，即 nickname， 也可以直接用<code>m.SetHeader("From", MAIL_USER)</code>
-	nickname := "gomail"
-	m.SetHeader("From", nickname+"<"+MailUser+">")
-	// 发送给多个用户
-	m.SetHeader("To", mailAddress...)
-	// 设置邮件主题
-	m.SetHeader("Subject", "bitcoin-node")
-	// 设置邮件正文
-	m.SetBody("text/html", body)
-	d := gomail.NewDialer(MailHost, MailPort, MailUser, MailPwd)
-	// 发送邮件
-	err := d.DialAndSend(m)
-	return err
-}
 
 func main() {
-	// err := SendGoMail("test")
-	// fmt.Println(err)
-	conf.ReadConf()
+	err := conf.ReadConf()
+	if err != nil {
+		log.Println("err:", err)
+		return
+	}
+
+	for {
+		for {
+			err = bitcoin_rpc.GetLatestHight(conf.Conf.Host, conf.Conf.Username, conf.Conf.Password)
+			if err != nil {
+				log.Println("err:", err)
+
+				err = mail.SendGoMail(err.Error())
+				if err != nil {
+					log.Println("发送邮件失败:", err)
+				}
+				break
+			}
+
+			err = three_bitcoin_rpc.GetLatestHight()
+			if err != nil {
+				log.Println("err:", err)
+
+				err = mail.SendGoMail(err.Error())
+				if err != nil {
+					log.Println("发送邮件失败:", err)
+				}
+				break
+			}
+			log.Println("节点获取最新区块高度:", bitcoin_rpc.LatestHeight,
+				"第三方获取区块最新高度:", three_bitcoin_rpc.LatestHeight.Height)
+
+			abs := math.Abs(float64(bitcoin_rpc.LatestHeight - three_bitcoin_rpc.LatestHeight.Height))
+			absString := strconv.FormatFloat(abs, 'f', 10, 64)
+			if abs > 1 {
+				log.Println("err:", "相差", absString, "个块")
+
+				err = mail.SendGoMail(absString)
+				if err != nil {
+					log.Println("发送邮件失败:", err)
+				}
+				break
+			}
+			break
+		}
+
+		log.Println("sleep 60s")
+		time.Sleep(60 * time.Second)
+	}
 }
