@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -34,6 +35,9 @@ func main() {
 			err = three_bitcoin_rpc.GetLatestHight()
 			if err != nil {
 				log.Println("err:", err)
+				if strings.Contains(err.Error(), "unexpected end of JSON input") {
+					break
+				}
 
 				err = mail.SendGoMail(err.Error())
 				if err != nil {
@@ -46,7 +50,7 @@ func main() {
 
 			abs := math.Abs(float64(bitcoin_rpc.LatestHeight - three_bitcoin_rpc.LatestHeight.Height))
 			absString := strconv.FormatFloat(abs, 'f', 10, 64)
-			if abs > 1 {
+			if abs > 2 {
 				log.Println("err:", "相差", absString, "个块")
 
 				err = mail.SendGoMail(absString)
@@ -58,7 +62,7 @@ func main() {
 			break
 		}
 
-		log.Println("sleep 60s")
-		time.Sleep(60 * time.Second)
+		log.Println("sleep 120s")
+		time.Sleep(120 * time.Second)
 	}
 }
